@@ -1,0 +1,13 @@
+{
+    "name": "jacekkow/uphpcas",
+    "type": "library",
+    "description": "Simple PHP library for CAS authentication",
+    "homepage": "https://github.com/jacekkow/uphpcas",
+    "license": "BSD-3-Clause",
+    "require": {
+        "php": ">=5.3.0"
+    },
+    "autoload": {
+        "classmap": ["uphpCAS.php"]
+    }
+}

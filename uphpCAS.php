@@ -1,7 +1,7 @@
 <?php
 // Thrown when internal error occurs
 class JasigException extends Exception {}
-// Thrown when CAS server return authentication error
+// Thrown when CAS server returns authentication error
 class JasigAuthException extends JasigException {}
 
 class JasigUser {
@@ -13,8 +13,11 @@ class uphpCAS {
 	const VERSION = '1.0';
 	protected $serverUrl = '';
 	protected $serviceUrl;
+	protected $sessionName = 'uphpCAS-user';
+	protected $method = 'POST';
+	protected $caFile = NULL;
 	
-	function __construct($serverUrl = NULL, $serviceUrl = NULL) {
+	function __construct($serverUrl = NULL, $serviceUrl = NULL, $sessionName = NULL) {
 		if($serverUrl != NULL) {
 			$this->serverUrl = rtrim($serverUrl, '/');
 		}
@@ -22,31 +25,52 @@ class uphpCAS {
 		if($serviceUrl != NULL) {
 			$this->serviceUrl = $serviceUrl;
 		} else {
-			$url = 'http://';
-			$port = 0;
-			if(isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') {
-				$url = 'https://';
-				if(isset($_SERVER['SERVER_PORT'])
-						&& $_SERVER['SERVER_PORT'] != '443') {
-					$port = $_SERVER['SERVER_PORT'];
-				}
-			} elseif(isset($_SERVER['SERVER_PORT'])
-					&& $_SERVER['SERVER_PORT'] != '80') {
-				$port = $_SERVER['SERVER_PORT'];
-			}
-			
-			$url .= $_SERVER['SERVER_NAME'];
-			
-			if($port != 0) {
-				$url .= ':'.$port;
-			}
-			$url .= $_SERVER['REQUEST_URI'];
-			
-			$this->serviceUrl = $url;
+			$this->serviceUrl = $this->getCurrentUrl();
+		}
+		
+		if($sessionName) {
+			$this->sessionName = $sessionName;
+		}
+		
+		if(version_compare(PHP_VERSION, '5.6', '<')) {
+			$this->caFile = $this->findCaFile();
 		}
 	}
 	
-	public function getServerUrl($serverUrl) {
+	public function getCurrentUrl() {
+		$url = 'http://';
+		$port = 0;
+		if(isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') {
+			$url = 'https://';
+			if(isset($_SERVER['SERVER_PORT'])
+					&& $_SERVER['SERVER_PORT'] != '443') {
+				$port = $_SERVER['SERVER_PORT'];
+			}
+		} elseif(isset($_SERVER['SERVER_PORT'])
+				&& $_SERVER['SERVER_PORT'] != '80') {
+			$port = $_SERVER['SERVER_PORT'];
+		}
+		
+		$url .= $_SERVER['SERVER_NAME'];
+		
+		if($port != 0) {
+			$url .= ':'.$port;
+		}
+		
+		$url .= $_SERVER['REQUEST_URI'];
+		
+		if(isset($_GET['ticket'])) {
+			$pos = max(
+				strrpos($url, '?ticket='),
+				strrpos($url, '&ticket=')
+			);
+			$url = substr($url, 0, $pos);
+		}
+		
+		return $url;
+	}
+	
+	public function getServerUrl() {
 		return $this->serverUrl;
 	}
 	public function setServerUrl($serverUrl) {
@@ -60,34 +84,67 @@ class uphpCAS {
 		$this->serviceUrl = $serviceUrl;
 	}
 	
+	public function getSessionName() {
+		return $this->sessionName;
+	}
+	public function setSessionName($sessionName) {
+		$this->sessionName = $sessionName;
+	}
+	
+	public function getMethod() {
+		return $this->method;
+	}
+	public function setMethod($method) {
+		if($method != 'GET' && $method != 'POST') {
+			throw new DomainException('Unsupported CAS response'
+				.' method: '.$method);
+		}
+		$this->method = $method;
+	}
+	
+	public function getCaFile() {
+		return $this->caFile;
+	}
+	public function setCaFile($caFile) {
+		if(!is_file($caFile)) {
+			throw new DomainException('Invalid CA file: '.$caFile);
+		}
+		$this->caFile = $caFile;
+	}
+	
 	public function loginUrl() {
-		return $this->serverUrl.'/login?method=POST&service='.urlencode($this->serviceUrl);
+		return $this->serverUrl.'/login?method='.$this->method
+			.'&service='.urlencode($this->serviceUrl);
 	}
 	
 	public function logoutUrl($returnUrl = NULL) {
-		return $this->serverUrl.'/logout'.($returnUrl ? '?service='.urlencode($returnUrl) : '');
+		return $this->serverUrl.'/logout'
+			.($returnUrl ? '?service='.urlencode($returnUrl) : '');
 	}
 	
-	public function logout() {
-		session_start();
-		if(isset($_SESSION['uphpCAS-user'])) {
-			unset($_SESSION['uphpCAS-user']);
+	public function logout($returnUrl = NULL) {
+		@session_start();
+		if($this->isAuthenticated()) {
+			unset($_SESSION[$this->sessionName]);
+			header('Location: '.$this->logoutUrl($returnUrl));
+			die();
+		} elseif($returnUrl) {
+			header('Location: '.$returnUrl);
+			die();
 		}
-		header('Location: '.$this->logoutUrl());
-		die();
 	}
 	
 	public function isAuthenticated() {
-		return isset($_SESSION['uphpCAS-user']);
+		return isset($_SESSION[$this->sessionName]);
 	}
 	
 	public function authenticate() {
-		session_start();
+		@session_start();
 		if($this->isAuthenticated()) {
-			return $_SESSION['uphpCAS-user'];
+			return $_SESSION[$this->sessionName];
 		} elseif(isset($_REQUEST['ticket'])) {
 			$user = $this->verifyTicket($_REQUEST['ticket']);
-			$_SESSION['uphpCAS-user'] = $user;
+			$_SESSION[$this->sessionName] = $user;
 			return $user;
 		} else {
 			header('Location: '.$this->loginUrl());
@@ -95,7 +152,25 @@ class uphpCAS {
 		}
 	}
 	
-	public function verifyTicket($ticket) {
+	protected function findCaFile() {
+		$cafiles = array(
+			'/etc/ssl/certs/ca-certificates.crt',
+			'/etc/ssl/certs/ca-bundle.crt',
+			'/etc/pki/tls/certs/ca-bundle.crt',
+		);
+		
+		$cafile = NULL;
+		foreach($cafiles as $file) {
+			if(is_file($file)) {
+				$cafile = $file;
+				break;
+			}
+		}
+		
+		return $cafile;
+	}
+	
+	protected function createStreamContext($hostname) {
 		$context = array(
 			'http' => array(
 				'method' => 'GET',
@@ -111,31 +186,26 @@ class uphpCAS {
 			),
 		);
 		
-		if(version_compare(PHP_VERSION, '5.6', '<')) {
-			$cafiles = array(
-				'/etc/ssl/certs/ca-certificates.crt',
-				'/etc/ssl/certs/ca-bundle.crt',
-				'/etc/pki/tls/certs/ca-bundle.crt',
-			);
-			$cafile = NULL;
-			foreach($cafiles as $file) {
-				if(is_file($file)) {
-					$cafile = $file;
-					break;
-				}
-			}
-			
-			$url = parse_url($this->serverUrl);
-			$context['ssl']['cafile'] = $cafile;
-			$context['ssl']['ciphers'] = 'ECDH:DH:AES:CAMELLIA:!SSLv2:!aNULL'
-					.':!eNULL:!EXPORT:!DES:!3DES:!MD5:!RC4:!ADH:!PSK:!SRP';
-			$context['ssl']['CN_match'] = $url['host'];
+		if($this->caFile) {
+			$context['ssl']['cafile'] = $this->caFile;
 		}
+		
+		if(version_compare(PHP_VERSION, '5.6', '<')) {
+			$context['ssl']['ciphers'] = 'ECDH:DH:AES:CAMELLIA:!SSLv2:!aNULL'
+				.':!eNULL:!EXPORT:!DES:!3DES:!MD5:!RC4:!ADH:!PSK:!SRP';
+			$context['ssl']['CN_match'] = $hostname;
+		}
+		
+		return stream_context_create($context);
+	}
+	
+	public function verifyTicket($ticket) {
+		$url = parse_url($this->serverUrl);
+		$context = $this->createStreamContext($url['host']);
 		
 		$data = file_get_contents($this->serverUrl
 					.'/serviceValidate?service='.urlencode($this->serviceUrl)
-					.'&ticket='.urlencode($ticket),
-				FALSE, stream_context_create($context));
+					.'&ticket='.urlencode($ticket), FALSE, $context);
 		if($data === FALSE) {
 			throw new JasigException('Authentication error: CAS server is unavailable');
 		}
@@ -157,15 +227,16 @@ class uphpCAS {
 						break;
 				}
 			}
-		}
-		catch(Exception $e) {
-			throw new JasigException('Authentication error: CAS server'
-					.' response invalid - parse error', 0, $e);
-		} finally {
+		} catch(Exception $e) {
 			libxml_clear_errors();
 			libxml_disable_entity_loader($xmlEntityLoader);
 			libxml_use_internal_errors($xmlInternalErrors);
+			throw new JasigException('Authentication error: CAS server'
+					.' response invalid - parse error', 0, $e);
 		}
+		libxml_clear_errors();
+		libxml_disable_entity_loader($xmlEntityLoader);
+		libxml_use_internal_errors($xmlInternalErrors);
 		
 		$failure = $xml->getElementsByTagName('authenticationFailure');
 		$success = $xml->getElementsByTagName('authenticationSuccess');
@@ -192,7 +263,7 @@ class uphpCAS {
 			}
 			
 			$user = trim($user->item(0)->textContent);
-			if(strlen($user)<1) {
+			if(strlen($user) < 1) {
 				throw new JasigException('Authentication error: CAS server'
 						.' response invalid - user value');
 			}
@@ -209,9 +280,7 @@ class uphpCAS {
 			}
 			
 			return $jusr;
-		}
-		else
-		{
+		} else {
 			throw new JasigException('Authentication error: CAS server'
 					.' response invalid - required tag not found');
 		}
