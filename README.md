@@ -1,6 +1,6 @@
-# Questions2Answer - CAS + LDAP authentication
+# Question2Answer - CAS + LDAP authentication
 
-This script integrates [Questions2Answer system](http://www.question2answer.org)
+This script integrates [Question2Answer system](http://www.question2answer.org)
 with CAS authentication using [uphpCAS library](https://github.com/jacekkow/uphpCAS)
 and authorization using data from LDAP server.
 
@@ -9,7 +9,7 @@ and authorization using data from LDAP server.
 1. Download [qa-cas-ldap-auth-master.zip](https://github.com/jacekkow/qa-cas-ldap-auth/archive/master.zip)
 1. Extract it.
 1. Configure module (`qa-external/config.php`). Options are described in `Configuration` section.
-1. Copy qa-external directory to the location you installed Questions2Answer to.
+1. Copy qa-external directory to the location you installed Question2Answer to.
 1. Uncomment line:
 	
 	```
@@ -17,11 +17,11 @@ and authorization using data from LDAP server.
 	```
 	
 	in  `qa-config.php`.
-1. Follow Questions2Answer installation guide.
+1. Follow Question2Answer installation guide.
 
 ## General information
 
-CAS server returns user ID. This ID is used as `userid` in Questions2Answer system.
+CAS server returns user ID. This ID is used as `userid` in Question2Answer system.
 
 Additional information, such as e-mail address and username are retrieved from LDAP directory.
 
@@ -50,10 +50,10 @@ Must be one of the constants:
 
 #### $qa_session_prefix
 
-Prefix used to distinguish this Questions2Answer from others under the same domain.
+Prefix used to distinguish this Question2Answer from others under the same domain.
 This prefix is used to prefix names of entries in `$_SESSION` array.
 
-If only one instance of Questions2Answer system is installed under one session scope
+If only one instance of Question2Answer system is installed under one session scope
 (see [PHP Session Configuration](http://php.net/manual/en/session.configuration.php)
 for more information on session cookies) or all instances use the same set of
 users & privileges, no modification is necessary.
@@ -117,7 +117,7 @@ This value will be AND-ed with the search filter.
 Name of the attribute in the user's LDAP entry, containing `userid` as returned
 by the CAS server, eg. `uid`.
 
-This ID is used internally by Questions2Answer in various DB tables and is not displayed.
+This ID is used internally by Question2Answer in various DB tables and is not displayed.
 
 #### $ldap_public_username_attr
 
