@@ -1,14 +1,14 @@
 # Question2Answer - CAS + LDAP authentication
 
 This script integrates [Question2Answer system](http://www.question2answer.org)
-with CAS authentication using [uphpCAS library](https://github.com/jacekkow/uphpCAS)
-and authorization using data from LDAP server.
+with CAS authentication using [uphpCAS library](https://github.com/jacekkow/uphpCAS).
+User data and permission levels are retrieved from LDAP server.
 
 ## Installation
 
 1. Download [qa-cas-ldap-auth-master.zip](https://github.com/jacekkow/qa-cas-ldap-auth/archive/master.zip)
 1. Extract it.
-1. Configure module (`qa-external/config.php`). Options are described in `Configuration` section.
+1. Configure module (`qa-external/config.php`). Options are described in `Configuration` section below.
 1. Copy qa-external directory to the location you installed Question2Answer to.
 1. Uncomment line:
 	
@@ -38,7 +38,7 @@ Available options:
 Default permission level for authenticated user. Used when no other permission level
 was configured in LDAP directory.
 
-Must be one of the constants:
+Must be set to one of the following constants:
 
 * `QA_USER_LEVEL_BASIC`
 * `QA_USER_LEVEL_APPROVED`
@@ -50,8 +50,8 @@ Must be one of the constants:
 
 #### $qa_session_prefix
 
-Prefix used to distinguish this Question2Answer from others under the same domain.
-This prefix is used to prefix names of entries in `$_SESSION` array.
+Prefix used to distinguish this Question2Answer instance from other ones under the same domain.
+This value is used to prefix names of entries in `$_SESSION` array.
 
 If only one instance of Question2Answer system is installed under one session scope
 (see [PHP Session Configuration](http://php.net/manual/en/session.configuration.php)
@@ -80,21 +80,21 @@ Whather to use STARTTLS encryption for LDAP connection.
 
 Set to `FALSE` if you use LDAPS.
 
-Must be `TRUE` or `FALSE`.
+Must be set to `TRUE` or `FALSE`.
 
 #### $ldap_bind_dn
 
-Connect to LDAP (bind) as this user. Set to `NULL` to do an anonymous bind.
+User to bind as during LDAP connection. Set to `NULL` to do bind anonymously.
 
 #### $ldap_bind_pass
 
-Password for user specified in `$ldap_bind_dn`
+Password for a user specified in `$ldap_bind_dn`
 
 ### LDAP - users
 
 #### $ldap_user_base_dn
 
-DN to search users under, eg. `ou=users,dc=corp`
+Base DN for user search operation, eg. `ou=users,dc=corp`
 
 #### $ldap_user_base_depth
 
@@ -107,8 +107,8 @@ Possible values are:
 
 #### $ldap_user_filter
 
-Filter to apply when searching for users, eg. `(accountStatus=active)`. Single key-value pair
-must be enclosed in parenthesis.
+Filter to apply when searching for users, eg. `(accountStatus=active)`.
+Single key-value pair must be enclosed in parenthesis.
 
 This value will be AND-ed with the search filter.
 
@@ -121,15 +121,15 @@ This ID is used internally by Question2Answer in various DB tables and is not di
 
 #### $ldap_public_username_attr
 
-Name of the attribute in the user's LDAP entry, containing username which will be used publicly
+Name of the attribute in the user entry containing username, which will be used publicly
 instead of the `userid`. Values must be unique and map one-to-one to `userid`.
 
 If unsure, set to the same value as `$ldap_userid_attr`, eg. `uid`
 
 #### $ldap_public_display_attr
 
-Name of the attribute in the user's LDAP entry, containing which will be displayed instead of
-the `username` - for example this may contain user's full name - `cn`
+Name of the attribute in the user entry containing name, which will be displayed
+instead of the `username` - for example this may contain full name - `cn`
 
 Links to the user profiles will look like this:
 
@@ -141,14 +141,14 @@ If unsure, set to the same value as `$ldap_userid_attr`, eg. `uid`
 
 #### $ldap_email_attr
 
-Name of the attribute in the user's LDAP entry, containing user's mail address.
+Name of the attribute in the user entry containing e-mail address.
 When multiple values are provided by the LDAP server - first one is used.
 
 ### LDAP - groups
 
 #### $ldap_group_base_dn
 
-DN to search groups under, eg. `ou=groups,dc=corp`
+Base DN for group search operation, eg. `ou=qaSite,ou=groups,dc=corp`
 
 #### $ldap_group_base_depth
 
@@ -168,12 +168,29 @@ This value will be AND-ed with the search filter.
 
 #### $ldap_member_group_attr
 
-Name of the attribute in the group's LDAP entry, containing reference to the user.
+Name of the attribute in the group entry containing reference to the user.
 
 #### $ldap_member_user_attr
 
-Name of the attribute in the users's LDAP entry, which is referenced by attribute
-configure id `$ldap_member_group_attr`.
+Name of the attribute in the user entry, which is referenced by attribute
+configured by `$ldap_member_group_attr`.
+
+If group entry contains:
+
+```
+member: jsmith
+```
+
+and user entry contains:
+
+```
+uid: jsmith
+```
+
+Then `$ldap_member_group_attr` should be set to `member`
+and `$ldap_member_user_attr` to `uid`.
+
+`dn` may be used to get full DN of an entry (eg. `uid=jsmith,ou=users,dc=corp`).
 
 #### $ldap_level_groups
 
@@ -238,7 +255,7 @@ Configuration 1:
 	);
 ```
 
-* uidNumber (eg. 1001) will be used to identify users internally,
+* uidNumber (eg. 1001) is returned by CAS server,
 * uid (eg. jsmith) will be used as a username (in URLs),
 * cn (eg. John Smith) will be displayed instead of a username.
 
@@ -264,6 +281,6 @@ Configuration 2:
 	);
 ```
 
-* uid (eg. jsmith) will be used to identify users internally,
+* uid (eg. jsmith) is returned by CAS server,
 * uid (eg. jsmith) will be used as a username (in URLs),
 * uid (eg. jsmith) will be displayed instead of a username.
